@@ -18,6 +18,27 @@ contract Market{
         uint price;
     }
 
+    event Listed(
+        uint listingId,
+        address seller,
+        address token,
+        uint tokenId,
+        uint price
+    );
+
+    event Sale(
+        uint listingId,
+        address buyer,
+        address token,
+        uint tokenId,
+        uint price
+    );
+
+    event Cancel(
+        uint listingId,
+        address seller
+    );
+
     uint private _listingId =0;
     mapping (uint => Listing) private _listings;
 
@@ -34,6 +55,14 @@ contract Market{
 
         _listingId++;
         _listings[_listingId]=listing;
+
+        emit Listed(
+            _listingId,
+            msg.sender,
+            token,
+            tokenId,
+            price
+        );
     }
 
     function buyToken(uint listingId) external payable{
@@ -45,6 +74,14 @@ contract Market{
 
         IERC21(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
         payable(listing.seller).transfer(listing.price);
+
+        emit Sale(
+            listingId,
+            msg.sender,
+            listing.token,
+            listing.tokenId,
+            listing.price
+        );
     }
 
     function cancel(uint listingId) public {
@@ -53,5 +90,6 @@ contract Market{
         require(msg.sender == listing.seller,"The canceler needs to be the seller");
         listing.status=ListingStatus.Cancelled;
         IERC21(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
+        emit.Cancle(listingId,listing.seller)
     }
 }
