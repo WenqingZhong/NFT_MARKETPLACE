@@ -65,6 +65,10 @@ contract Market{
         );
     }
 
+    function getListing(unit listingId) public view returns (Listing){
+        return _listings[listingId];
+    }
+
     function buyToken(uint listingId) external payable{
         Listing storage listing = _listings[listingId];
         require(listing.status == ListingStatus.Active,"Listing is not active");
