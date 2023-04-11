@@ -94,6 +94,6 @@ contract Market{
         require(msg.sender == listing.seller,"The canceler needs to be the seller");
         listing.status=ListingStatus.Cancelled;
         IERC21(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
-        emit.Cancle(listingId,listing.seller)
+       // emit.Cancel(listingId,listing.seller);
     }
 }
