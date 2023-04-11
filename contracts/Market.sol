@@ -39,12 +39,19 @@ contract Market{
     function buyToken(uint listingId) external payable{
         Listing storage listing = _listings[listingId];
         require(listing.status == ListingStatus.Active,"Listing is not active");
-        require(msg.sender == listing.seller,"Seller cannot be buyer");
+        require(msg.sender != listing.seller,"Seller cannot be buyer");
         require(msg.value >= listing.price, "Insufficient payment");
         listing.status=ListingStatus.Sold;
-        
+
         IERC21(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
         payable(listing.seller).transfer(listing.price);
+    }
 
+    function cancel(uint listingId) public {
+        Listing storage listing = _listings[listingId];
+        require(listing.status == ListingStatus.Active,"Listing is not active");
+        require(msg.sender == listing.seller,"The canceler needs to be the seller");
+        listing.status=ListingStatus.Cancelled;
+        IERC21(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
     }
 }
