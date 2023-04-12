@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
-import "/Users/wenqingzhong/Desktop/nft_marketplace/contracts";
+import "./IERC721.sol";
 
 contract Market{
 
@@ -65,7 +65,7 @@ contract Market{
         );
     }
 
-    function getListing(unit listingId) public view returns (Listing){
+    function getListing(uint listingId) public view returns (Listing memory){
         return _listings[listingId];
     }
 
@@ -76,7 +76,7 @@ contract Market{
         require(msg.value >= listing.price, "Insufficient payment");
         listing.status=ListingStatus.Sold;
 
-        IERC21(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
+        IERC721(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
         payable(listing.seller).transfer(listing.price);
 
         emit Sale(
@@ -93,7 +93,7 @@ contract Market{
         require(listing.status == ListingStatus.Active,"Listing is not active");
         require(msg.sender == listing.seller,"The canceler needs to be the seller");
         listing.status=ListingStatus.Cancelled;
-        IERC21(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
+        IERC721(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
        // emit.Cancel(listingId,listing.seller);
     }
 }
