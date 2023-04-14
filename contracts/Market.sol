@@ -1,8 +1,22 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
-import "./IERC721.sol";
+//SPDX-License-Identifier: Unlicense
+pragma solidity ^0.8.0;
 
-contract Market{
+import "hardhat/console.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+contract NFTMarketplace is ERC721URIStorage {
+    address payable owner;
+
+    using Counters for Counters.Counter;
+    Counters.Counter private _tokenIds;
+    Counters.Counter private _itemSold;
+
+    constructor() ERC721("NFTMarketplace","NFTM"){
+        owner = payable(msg.sender);
+
+    }
 
     enum ListingStatus {
         Active,
@@ -10,90 +24,92 @@ contract Market{
         Cancelled
     }
 
-    struct Listing{
-        ListingStatus status;
-        address seller;
-        address token;
+    struct ListedToken{
         uint tokenId;
+        address payable owner;
+        address payable seller;
         uint price;
+        ListingStatus status;
     }
 
-    event Listed(
-        uint listingId,
-        address seller,
-        address token,
-        uint tokenId,
-        uint price
-    );
+    mapping (uint => ListedToken) private idToListedToken;
 
-    event Sale(
-        uint listingId,
-        address buyer,
-        address token,
-        uint tokenId,
-        uint price
-    );
+    //create Token
+    function createToken(string memory tokenURI, uint price) public payable returns (uint){
+        require(price>0,"Token Price has to be positive");
+        _tokenIds.increment();
+        uint curId = _tokenIds.current();
+        _safeMint(msg.sender, curId);
+        _setTokenURI(curId, tokenURI);
+        createListedToken(curId,price);
 
-    event Cancel(
-        uint listingId,
-        address seller
-    );
+        return curId;
+    }
 
-    uint private _listingId =0;
-    mapping (uint => Listing) private _listings;
-
-    function listToken(address token, uint tokenId, uint price) external {
-        IERC721(token).transferFrom(msg.sender, address(this), tokenId);
-
-        Listing memory listing = Listing(
-            ListingStatus.Active,
-            msg.sender,
-            token,
+    function createListedToken(uint tokenId, uint price) private {
+        idToListedToken[tokenId] =ListedToken (
             tokenId,
-            price
+            payable(address(this)),
+            payable(msg.sender),
+            price,
+            ListingStatus.Active
         );
 
-        _listingId++;
-        _listings[_listingId]=listing;
-
-        emit Listed(
-            _listingId,
-            msg.sender,
-            token,
-            tokenId,
-            price
-        );
+        //Let smart contract own this NFT (approve contract)
+        _transfer(msg.sender, address(this), tokenId);
     }
 
-    function getListing(uint listingId) public view returns (Listing memory){
-        return _listings[listingId];
+    function getAllTokens() public view returns (ListedToken[] memory) {
+        uint count = _tokenIds.current();
+        ListedToken[] memory tokens = new ListedToken[](count);
+        uint curId = 0;
+
+        for (uint i =1; i< count; i++){
+            ListedToken storage cur = idToListedToken[i];
+            if (cur.status == ListingStatus.Active){
+                tokens[curId]= cur;
+                curId++;
+            }
+            
+        }
+        return tokens;
     }
 
-    function buyToken(uint listingId) external payable{
-        Listing storage listing = _listings[listingId];
-        require(listing.status == ListingStatus.Active,"Listing is not active");
-        require(msg.sender != listing.seller,"Seller cannot be buyer");
-        require(msg.value >= listing.price, "Insufficient payment");
-        listing.status=ListingStatus.Sold;
+    function getMyTokens() public view returns (ListedToken[] memory) {
+        uint count = _tokenIds.current();
+        ListedToken[] memory tokens = new ListedToken[](count);
+        uint curId = 0;
 
-        IERC721(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
-        payable(listing.seller).transfer(listing.price);
-
-        emit Sale(
-            listingId,
-            msg.sender,
-            listing.token,
-            listing.tokenId,
-            listing.price
-        );
+        for (uint i =1; i< count; i++){
+            ListedToken storage cur = idToListedToken[i];
+            if (cur.owner == msg.sender || cur.seller == msg.sender){
+                tokens[curId]= cur;
+                curId++;
+            }  
+        }
+        return tokens;
     }
 
-    function cancel(uint listingId) public {
-        Listing storage listing = _listings[listingId];
-        require(listing.status == ListingStatus.Active,"Listing is not active");
-        require(msg.sender == listing.seller,"The canceler needs to be the seller");
-        listing.status=ListingStatus.Cancelled;
-        IERC721(listing.token).transferFrom(address(this), msg.sender, listing.tokenId);
-       // emit.Cancel(listingId,listing.seller);
+    function buyToken(uint tokenId) external payable{
+        ListedToken storage token = idToListedToken[tokenId];
+        require(token.status == ListingStatus.Active,"Listing is not active");
+        require(msg.sender != token.seller,"Seller cannot be buyer");
+        require(msg.value >= token.price, "Insufficient payment");
+        token.status=ListingStatus.Sold;
+        token.seller = payable(msg.sender);
+
+        _transfer(address(this), msg.sender, token.tokenId);
+        approve(address(this),tokenId);
+        payable(token.seller).transfer(token.price);
     }
+
+    function cancel(uint tokenId) public {
+        ListedToken storage token = idToListedToken[tokenId];
+        require(token.status == ListingStatus.Active,"Listing is not active");
+        require(msg.sender == token.seller,"The canceler needs to be the seller");
+        token.status=ListingStatus.Cancelled;
+        _transfer(address(this), msg.sender, token.tokenId);
+    }
+
+
 }
